@@ -7,6 +7,8 @@ with open('../data/spaEN_test.csv', 'r') as file:
     count = 0
     for row in reader:
         count += 1
+        if (count == 1000):
+            break
         if count == 1:
             continue
         correct_sentence = row[0]

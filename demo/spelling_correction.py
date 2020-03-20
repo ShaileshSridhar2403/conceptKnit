@@ -23,7 +23,6 @@ class SpellingCorrection(object):
         """
         # prepare model
         print('Initializing spelling correction model...')
-        print(detection_list, len(detection_list[0]))
         assert len(detection_list[0]) == 3, 'Wrong input format'
         self.misspellings, self.left_contexts, self.right_contexts = zip(*detection_list)
         assert len(self.misspellings) == len(self.left_contexts) == len(self.right_contexts), 'Input data not properly synchronized'
@@ -44,7 +43,6 @@ class SpellingCorrection(object):
         with open(pathtofrequencies, 'r') as f:
             self.frequency_dict = json.load(f)
         self.model = fasttext.load_model(pathtomodel)
-        print(dir(self.model))
 
         # set parameters for correction
         if self.language == "en":
@@ -55,12 +53,14 @@ class SpellingCorrection(object):
             self.oov_penalty = 2.4
         print('Model initialized')
         self.embeddings_index = {}
-        f = open(os.path.join("..", 'glove.6B.300d.txt'))
+#        f = open(os.path.join("..", 'glove.6B.300d.txt'))
+        f = open(os.path.join("..", 'numberbatch-en.txt'))
         for line in f:
                 values = line.split()
                 word = values[0]
                 coefs = np.asarray(values[1:], dtype='float32')
                 self.embeddings_index[word] = coefs
+        print(self.embeddings_index.keys())
 
     @staticmethod
     def comp_sum(vectors):
@@ -97,7 +97,7 @@ class SpellingCorrection(object):
         """
         print("vectorizing", sequence)
         if remove_oov:
-            sequence = [x for x in sequence if x in self.model.words]
+            sequence = [x for x in sequence if x in self.embeddings_index.keys()]
 
 #        return [np.array(self.model[x]) for x in sequence]
         l = []
@@ -105,7 +105,8 @@ class SpellingCorrection(object):
                 try:
                                 l.append(self.normalize(np.array(self.embeddings_index[x])))
                 except KeyError:
-                                l.append(self.normalize(np.array(self.model[x])))
+                                # l.append(self.normalize(np.array(self.model[x])))
+                                np.zeros(300)
         return l
 
     def context_ranking(self, candidates_list):
@@ -126,7 +127,7 @@ class SpellingCorrection(object):
             left_context, right_context = left_context[::-1][:self.window_size], right_context[:self.window_size]
             left_window = self.vectorize(left_context, remove_oov=True)  # take only in-voc tokens for context
             right_window = self.vectorize(right_context, remove_oov=True)  # take only in-voc tokens for context
-            # print("hello", left_window, right_window, left_context, "hey", right_context, "hey", self.left_contexts)
+            print("hello", left_window, right_window, left_context, "hey", right_context, "hey", self.left_contexts)
             if left_window:
                 vectorized_left_window = self.comp_sum(left_window)
             else:
@@ -229,6 +230,7 @@ class SpellingCorrection(object):
         candidates_list = candidates(self.misspellings, self.language)
         print(candidates_list)
         if self.ranking_model:
+            print(candidates_list)
             correction_list = self.context_ranking(candidates_list)
             if self.backoff:
                 backoff_correction_list = self.noisychannel_ranking(candidates_list)
@@ -256,7 +258,7 @@ if __name__ == "__main__":
     parser.add_argument('-model', help='1 for context-sensitive, 0 for noisy channel', dest='model', default=1, type=int)
     parser.add_argument('-k', help='Number of top-ranked corrections to return', dest='k', default=1, type=int)
     parser.add_argument('-language', help='Language of the input, 1 for English, 0 for Dutch', dest='language', default=1, type=int)
-    parser.add_argument('-backoff', help='Automatically backoff to noisy channel model if no context can be used, 1 if True, 0 if False', dest='backoff', default=0, type=int)
+    parser.add_argument('-backoff', help='Automatically backoff to noisy channel model if no context can be used, 1 if True, 0 if False', dest='backoff', default=1, type=int)
     args = parser.parse_args()
     with open(args.input, 'r') as f:
         detection_list = json.load(f)
